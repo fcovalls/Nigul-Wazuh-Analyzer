@@ -25,6 +25,8 @@ So this workflow puts an AI analyst in front of every high-severity alert. Webho
 
 ## Quick start
 
+> **Setting up with an AI assistant?** Paste [`AI-SETUP-PROMPT.md`](AI-SETUP-PROMPT.md) into Claude / ChatGPT / Gemini and it will interview you through the deployment, including building the infrastructure-context block from your specific environment. Recommended.
+
 1. **Import the workflow** into your n8n instance.
    ```bash
    # In n8n: Workflows > Import from File > select wazuh-ai-security-analyzer.workflow.json
@@ -110,6 +112,7 @@ Full walkthrough with a live brute-force attack triggering the chain end to end:
 .
 ├── wazuh-ai-security-analyzer.workflow.json   # The n8n workflow, import-ready
 ├── infrastructure-context-template.md         # System-prompt block (customize this)
+├── AI-SETUP-PROMPT.md                         # Companion prompt for AI-assisted deployment
 ├── scripts/
 │   └── wazuh-bruteforce-test.py               # End-to-end pipeline test
 ├── screenshots/                               # Workflow + Slack output reference
