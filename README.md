@@ -1,137 +1,137 @@
 # Wazuh AI Security Analyzer
 
-> An n8n workflow that turns every high-severity Wazuh alert into an AI-triaged Slack message with risk assessment, likely cause, and the exact shell commands to investigate. About **$0.001 per alert** with Claude Haiku.
+> Un workflow de n8n que convierte cada alerta de alta severidad de Wazuh en un mensaje de Slack con triaje por IA, incluyendo evaluación de riesgo, causa probable y los comandos exactos de shell para investigar. Aproximadamente **$0.001 por alerta** con Claude Haiku.
 
-[![Watch the build](https://img.shields.io/badge/YouTube-Walkthrough-red?logo=youtube)](https://youtu.be/74TzhvvWmfk) [![Built by Agenius AI Labs](https://img.shields.io/badge/Built%20by-Agenius%20AI%20Labs-0033ff)](https://ageniuslabs.com) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Ver la demo](https://img.shields.io/badge/YouTube-Walkthrough-red?logo=youtube)](https://youtu.be/74TzhvvWmfk) [![Desarrollado por Agenius AI Labs](https://img.shields.io/badge/Desarrollado%20por-Agenius%20AI%20Labs-0033ff)](https://ageniuslabs.com) [![Licencia: MIT](https://img.shields.io/badge/Licencia-MIT-yellow.svg)](LICENSE)
 
-![AI-analyzed Slack alert](screenshots/05-slack-output-live.png)
+![Alerta de Slack analizada por IA](screenshots/05-slack-output-live.png)
 
-*Real output from the live demo: a brute-force SSH attempt against an internal Proxmox node was correctly flagged as `MEDIUM, likely false positive` because the source was internal, with five investigation commands attached.*
+*Salida real de la demo en vivo: un intento de fuerza bruta SSH contra un nodo Proxmox interno fue correctamente clasificado como `MEDIO, probablemente falso positivo` porque el origen era interno, con cinco comandos de investigación adjuntos.*
 
 ---
 
-## Why this exists
+## Por qué existe esto
 
-Your Wazuh SIEM fires hundreds of alerts a day. Most are noise. Some are real. Reading every one is impossible. Ignoring them is dangerous. Tuning them out kills the whole point of running a SIEM.
+Tu SIEM Wazuh genera cientos de alertas al día. La mayoría son ruido. Algunas son reales. Leerlas todas es imposible. Ignorarlas es peligroso. Silenciarlas anula el propósito de tener un SIEM.
 
-So this workflow puts an AI analyst in front of every high-severity alert. Webhook in, infrastructure-aware risk assessment out. Drop it in your Slack security channel and you read the answer, not the dashboards.
+Este workflow coloca un analista de IA frente a cada alerta de alta severidad. Webhook de entrada, evaluación de riesgo con contexto de infraestructura en la salida. Publícalo en tu canal de seguridad de Slack y lees la respuesta directamente, sin tener que revisar los dashboards.
 
-## What it does
+## Qué hace
 
-1. Wazuh fires a webhook on any alert above your configured level (default level 10).
-2. The workflow extracts the alert payload and ships it to your chosen LLM (Claude Haiku by default; OpenAI, local Ollama, anything works) along with an **infrastructure context block** that tells the model what is normal in YOUR network.
-3. The model returns a structured analysis: risk level, one-line summary, likely cause, action items, and exact shell commands to investigate.
-4. Formatted message lands in Slack (or Telegram, Teams, anywhere with an incoming webhook) within seconds of the original alert.
+1. Wazuh lanza un webhook con cualquier alerta por encima del nivel configurado (nivel 10 por defecto).
+2. El workflow extrae el payload de la alerta y lo envía al LLM elegido (Claude Haiku por defecto; también funciona con OpenAI, Ollama local o cualquier otro) junto con un **bloque de contexto de infraestructura** que le indica al modelo qué es normal en TU red.
+3. El modelo devuelve un análisis estructurado: nivel de riesgo, resumen en una línea, causa probable, acciones a tomar y comandos exactos de shell para investigar.
+4. El mensaje formateado llega a Slack (o Telegram, Teams, cualquier destino con webhook entrante) en segundos tras la alerta original.
 
-## Quick start
+## Inicio rápido
 
-> **Setting up with an AI assistant?** Paste [`AI-SETUP-PROMPT.md`](AI-SETUP-PROMPT.md) into Claude / ChatGPT / Gemini and it will interview you through the deployment, including building the infrastructure-context block from your specific environment. Recommended.
+> **¿Configurando con un asistente de IA?** Pega [`AI-SETUP-PROMPT.md`](AI-SETUP-PROMPT.md) en Claude / ChatGPT / Gemini y te guiará a través del despliegue, incluyendo la construcción del bloque de contexto de infraestructura a partir de tu entorno específico. Recomendado.
 
-1. **Import the workflow** into your n8n instance.
+1. **Importa el workflow** en tu instancia de n8n.
    ```bash
-   # In n8n: Workflows > Import from File > select wazuh-ai-security-analyzer.workflow.json
+   # En n8n: Workflows > Importar desde archivo > selecciona wazuh-ai-security-analyzer.workflow.json
    ```
 
-2. **Configure three credentials** in n8n:
-   - LLM API key (Anthropic, OpenAI, or your Ollama endpoint)
-   - Slack incoming webhook URL
-   - Wazuh webhook integration (configured below)
+2. **Configura tres credenciales** en n8n:
+   - Clave API del LLM (Anthropic, OpenAI o tu endpoint de Ollama)
+   - URL del webhook entrante de Slack
+   - Integración de webhook de Wazuh (configurada a continuación)
 
-3. **Customize the infrastructure context block** in the `Config` node. Use [`infrastructure-context-template.md`](infrastructure-context-template.md) as the starting point. This is the piece that makes the AI analysis actually useful, do not skip it.
+3. **Personaliza el bloque de contexto de infraestructura** en el nodo `Config`. Usa [`infrastructure-context-template.md`](infrastructure-context-template.md) como punto de partida. Este es el elemento que hace útil el análisis de IA, no lo omitas.
 
-4. **Wire up Wazuh** to fire a webhook on alerts at or above the workflow's default level (9). Add to `/var/ossec/etc/ossec.conf`:
+4. **Configura Wazuh** para lanzar un webhook en alertas a partir del nivel por defecto del workflow (9). Añade a `/var/ossec/etc/ossec.conf`:
    ```xml
    <integration>
      <name>custom-n8n-webhook</name>
-     <hook_url>https://YOUR-N8N-INSTANCE/webhook/wazuh-alert-ai-public</hook_url>
+     <hook_url>https://TU-INSTANCIA-N8N/webhook/wazuh-alert-ai-public</hook_url>
      <level>9</level>
      <alert_format>json</alert_format>
    </integration>
    ```
-   Restart the Wazuh manager: `systemctl restart wazuh-manager`.
+   Reinicia el manager de Wazuh: `systemctl restart wazuh-manager`.
 
-   The workflow `Config` node sets `minAlertLevel=9` and `criticalLevel=12` by default. Adjust both there to fit your noise tolerance.
+   El nodo `Config` del workflow establece `minAlertLevel=9` y `criticalLevel=12` por defecto. Ajusta ambos valores según tu tolerancia al ruido.
 
-5. **Test the chain end to end** with the included script:
+5. **Prueba la cadena de extremo a extremo** con el script incluido:
    ```bash
    pip install paramiko
-   python scripts/wazuh-bruteforce-test.py <your-test-target-ip>
+   python scripts/wazuh-bruteforce-test.py <ip-de-tu-objetivo-de-prueba>
    ```
-   Within ~30 seconds you should see the AI-analyzed message land in Slack.
+   En unos 30 segundos deberías ver el mensaje analizado por IA en Slack.
 
-## What is in the workflow
+## Contenido del workflow
 
-![Workflow overview](screenshots/01-workflow-overview.png)
+![Vista general del workflow](screenshots/01-workflow-overview.png)
 
-Four logical sections, all documented inline in the workflow JSON:
+Cuatro secciones lógicas, todas documentadas inline en el JSON del workflow:
 
-| Section | Nodes | What it does |
+| Sección | Nodos | Qué hace |
 |---|---|---|
-| **Wazuh Incoming Alert Webhook** | Webhook trigger | Listens for Wazuh JSON payloads at `/webhook/wazuh-alert-ai-public` |
-| **Configuration & Qualification** | Config + IF node | Sets alert thresholds, model choice, timezone. Filters out anything below `minAlertLevel` (default 9). |
-| **Extract & Analyze** | Extract + LLM call | Pulls the alert details, builds the infrastructure-context-aware prompt, calls the LLM. |
-| **Format & Notify** | Format + Slack/Telegram/Teams | Builds the human-readable message and posts it. |
+| **Webhook de alerta entrante de Wazuh** | Trigger webhook | Escucha payloads JSON de Wazuh en `/webhook/wazuh-alert-ai-public` |
+| **Configuración y cualificación** | Config + nodo IF | Define umbrales de alerta, elección de modelo y zona horaria. Filtra todo lo que esté por debajo de `minAlertLevel` (9 por defecto). |
+| **Extracción y análisis** | Extract + llamada LLM | Extrae los detalles de la alerta, construye el prompt con contexto de infraestructura y llama al LLM. |
+| **Formateo y notificación** | Format + Slack/Telegram/Teams | Construye el mensaje legible y lo publica. |
 
-### Config node
+### Nodo Config
 
-![Config node](screenshots/02-config-node.png)
+![Nodo Config](screenshots/02-config-node.png)
 
-Single source of truth for thresholds, LLM provider, model, timezone. Change once, applies everywhere.
+Fuente única de verdad para umbrales, proveedor LLM, modelo y zona horaria. Cambia una vez, se aplica en todo el workflow.
 
-### Extract & Analyze
+### Extracción y análisis
 
-![Extract and Analyze node](screenshots/03-extract-and-analyze-node.png)
+![Nodo de extracción y análisis](screenshots/03-extract-and-analyze-node.png)
 
-The infrastructure context block lives here. The prompt is the secret sauce. See [`infrastructure-context-template.md`](infrastructure-context-template.md).
+El bloque de contexto de infraestructura vive aquí. El prompt es la clave. Consulta [`infrastructure-context-template.md`](infrastructure-context-template.md).
 
-### Slack output
+### Salida en Slack
 
-![Slack output node](screenshots/04-slack-output-node.png)
+![Nodo de salida en Slack](screenshots/04-slack-output-node.png)
 
-Drop-in for any incoming-webhook channel. Telegram and Teams variants are documented inline in the node's sticky notes.
+Compatible directamente con cualquier canal de webhook entrante. Las variantes para Telegram y Teams están documentadas inline en las notas adhesivas del nodo.
 
-## The whole workflow with inline docs
+## El workflow completo con documentación inline
 
-![Full workflow with sticky notes](screenshots/06-workflow-with-inline-docs.png)
+![Workflow completo con notas adhesivas](screenshots/06-workflow-with-inline-docs.png)
 
-Every node has a sticky note explaining what it does, what to configure, and where to find the relevant documentation. Setup is meant to be self-serve.
+Cada nodo tiene una nota adhesiva que explica qué hace, qué configurar y dónde encontrar la documentación relevante. La configuración está pensada para ser autoservicio.
 
-![Node configuration details panel](screenshots/07-node-configuration-details.png)
+![Panel de detalles de configuración del nodo](screenshots/07-node-configuration-details.png)
 
-## Live demo
+## Demo en vivo
 
-![Birds-eye: workflow, docs, and Slack output side by side](screenshots/08-birdseye-with-slack.png)
+![Vista panorámica: workflow, documentación y salida de Slack lado a lado](screenshots/08-birdseye-with-slack.png)
 
-Full walkthrough with a live brute-force attack triggering the chain end to end:
+Walkthrough completo con un ataque de fuerza bruta real activando la cadena de extremo a extremo:
 
 ▶ **[https://youtu.be/74TzhvvWmfk](https://youtu.be/74TzhvvWmfk)**
 
-## Repo contents
+## Contenido del repositorio
 
 ```
 .
-├── wazuh-ai-security-analyzer.workflow.json   # The n8n workflow, import-ready
-├── infrastructure-context-template.md         # System-prompt block (customize this)
-├── AI-SETUP-PROMPT.md                         # Companion prompt for AI-assisted deployment
+├── wazuh-ai-security-analyzer.workflow.json   # El workflow de n8n, listo para importar
+├── infrastructure-context-template.md         # Bloque de prompt del sistema (personaliza esto)
+├── AI-SETUP-PROMPT.md                         # Prompt complementario para despliegue asistido por IA
 ├── scripts/
-│   └── wazuh-bruteforce-test.py               # End-to-end pipeline test
-├── screenshots/                               # Workflow + Slack output reference
+│   └── wazuh-bruteforce-test.py               # Prueba de extremo a extremo del pipeline
+├── screenshots/                               # Referencia del workflow y salida de Slack
 ├── README.md
 └── LICENSE                                    # MIT
 ```
 
-## Who built this
+## Quién lo desarrolló
 
-[Michael Frostbutter](https://ageniuslabs.com), founder of Agenius AI Labs. 25+ years in network engineering and technology operations. Built this for my own home lab before packaging it for anyone else who wants to ship the same thing.
+[Michael Frostbutter](https://ageniuslabs.com), fundador de Agenius AI Labs. Más de 25 años en ingeniería de redes y operaciones tecnológicas. Lo construyó para su propio laboratorio doméstico antes de empaquetarlo para que cualquiera pueda usarlo.
 
-## Contributing
+## Contribuir
 
-Issues and PRs welcome. Particularly interested in:
-- Telegram / Teams / Discord notification variants tested in production
-- Multi-tenant context-block routing patterns for MSPs
-- Local Ollama model recommendations and quality comparisons
-- Wazuh rule packs that pair well with this workflow
+Issues y PRs son bienvenidos. Especialmente interesado en:
+- Variantes de notificación para Telegram / Teams / Discord probadas en producción
+- Patrones de enrutamiento de bloques de contexto multi-tenant para MSPs
+- Recomendaciones de modelos Ollama locales y comparativas de calidad
+- Packs de reglas de Wazuh que funcionen bien con este workflow
 
-## License
+## Licencia
 
-MIT, see [LICENSE](LICENSE). Use it however you want.
+MIT, consulta [LICENSE](LICENSE). Úsalo como quieras.
