@@ -1,0 +1,248 @@
+{
+  "name": "Nigul - Wazuh AI Security Analyzer (MSP NigulSystems)",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## Wazuh AI Security Analyzer \u2014 NigulSystems MSP\n\nRecibe alertas webhook de Wazuh (nivel >= 9), env\u00eda el payload al LLM de Perplexity/Claude para an\u00e1lisis y entrega notificaciones v\u00eda Email (Google Workspace) y ntfy.\n\n**Configurado para:**\n- Wazuh: wazuh.nigulsystems.net\n- Email: fcovalls@nigulsystems.com (Google Workspace)\n- Push notifications: ntfy.nigulsystems.net/Wazuh-Alerts\n- AI: Perplexity API \u2192 modelo claude-haiku-4-5-20251001\n\n**Inicio r\u00e1pido:**\n1. Configura credencial **Perplexity API** (HTTP Header Auth: Authorization: Bearer TU_KEY)\n2. Configura credencial **Gmail/Google Workspace** (OAuth2 o SMTP)\n3. Edita nodo **Config**: umbrales, zona horaria, email destino\n4. Personaliza el bloque infraContext en **Extraer Alerta** con tus IPs y hosts reales\n5. Activa el workflow y apunta ossec.conf a `/webhook/wazuh-alert-nigul`",
+        "height": 400,
+        "width": 580,
+        "color": 4
+      },
+      "id": "nigul-sticky-01",
+      "name": "Notas de configuraci\u00f3n",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [768, -420]
+    },
+    {
+      "parameters": {
+        "content": "## \u2699\ufe0f PERPLEXITY API \u2192 CLAUDE\n\nEl nodo 'An\u00e1lisis IA' usa HTTP Request con:\n- URL: https://api.perplexity.ai/chat/completions\n- Auth: HTTP Header Auth \u2192 Authorization: Bearer {{API_KEY}}\n- Model: claude-haiku-4-5-20251001\n\n**Crear credencial en n8n:**\nTipo: Header Auth\nNombre sugerido: Perplexity API\nHeader Name: Authorization\nHeader Value: Bearer TU_PERPLEXITY_API_KEY\n\n**Panel Perplexity API (perplexity.ai/settings/api):**\n- Solo necesitas la API Key activa\n- El modelo claude-haiku-4-5-20251001 est\u00e1 disponible\n- NO hace falta configurar nada especial en el panel\n- Verifica los l\u00edmites de tu plan si recibes muchas alertas",
+        "height": 380,
+        "width": 580,
+        "color": 3
+      },
+      "id": "nigul-sticky-02",
+      "name": "Nota Perplexity API",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [1380, -420]
+    },
+    {
+      "parameters": {
+        "content": "## \ud83d\udce7 EMAIL + \ud83d\udd14 NTFY\n\n**Email Google Workspace (Gmail OAuth2):**\n- Credencial tipo: Gmail OAuth2\n- En Google Cloud Console: habilita Gmail API, crea OAuth2 Client ID\n- Scopes necesarios: https://www.googleapis.com/auth/gmail.send\n- Alternativa SMTP: smtp.gmail.com:587, TLS, usa una App Password\n  (Google Account > Seguridad > Contrase\u00f1as de aplicaci\u00f3n)\n\n**ntfy.nigulsystems.net (instancia propia):**\n- Si NO tienes auth: no necesitas credencial, el nodo HTTP Request funciona directo\n- Si tienes auth en ntfy: crea credencial Header Auth\n  Header: Authorization / Value: Bearer TOKEN\n- Topic: Wazuh-Alerts\n- La acci\u00f3n del bot\u00f3n en ntfy abrir\u00e1 el Wazuh Dashboard",
+        "height": 380,
+        "width": 580,
+        "color": 6
+      },
+      "id": "nigul-sticky-03",
+      "name": "Nota Email y ntfy",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [1980, -420]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "wazuh-alert-nigul",
+        "options": {}
+      },
+      "id": "nigul-node-01",
+      "name": "Webhook Alerta Wazuh",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [272, 320],
+      "webhookId": "wazuh-alert-nigul-msp"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {"id": "cfg-min-level", "name": "minAlertLevel", "value": 9, "type": "number"},
+            {"id": "cfg-critical-level", "name": "criticalLevel", "value": 12, "type": "number"},
+            {"id": "cfg-timezone", "name": "timezone", "value": "Europe/Madrid", "type": "string"},
+            {"id": "cfg-model", "name": "aiModel", "value": "claude-haiku-4-5-20251001", "type": "string"},
+            {"id": "cfg-email-to", "name": "emailTo", "value": "fcovalls@nigulsystems.com", "type": "string"},
+            {"id": "cfg-email-prefix", "name": "emailSubjectPrefix", "value": "[NigulSystems NOC]", "type": "string"},
+            {"id": "cfg-ntfy-url", "name": "ntfyUrl", "value": "https://ntfy.nigulsystems.net/Wazuh-Alerts", "type": "string"},
+            {"id": "cfg-wazuh-url", "name": "wazuhDashboard", "value": "https://wazuh.nigulsystems.net", "type": "string"}
+          ]
+        },
+        "options": {}
+      },
+      "id": "nigul-node-02",
+      "name": "Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [624, 320]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {"caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2},
+          "conditions": [
+            {
+              "id": "cond-min-level",
+              "leftValue": "={{ $('Webhook Alerta Wazuh').first().json.body.rule.level }}",
+              "rightValue": "={{ $json.minAlertLevel }}",
+              "operator": {"type": "number", "operation": "gte"}
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "nigul-node-03",
+      "name": "SI Nivel Clasifica",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [784, 320]
+    },
+    {
+      "parameters": {},
+      "id": "nigul-node-04",
+      "name": "Parar - Por Debajo del Umbral",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [720, 500]
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first().json;\nconst alert = $('Webhook Alerta Wazuh').first().json.body;\n\nconst level = parseInt(alert?.rule?.level ?? 0);\nconst description = alert?.rule?.description ?? 'Regla desconocida';\nconst agentName = alert?.agent?.name ?? 'desconocido';\nconst agentId = alert?.agent?.id ?? 'N/A';\nconst agentIp = alert?.agent?.ip ?? 'N/A';\nconst srcIp = alert?.data?.srcip ?? null;\nconst dstUser = alert?.data?.dstuser ?? null;\nconst srcUser = alert?.data?.srcuser ?? null;\nconst command = alert?.data?.command ?? null;\nconst groups = Array.isArray(alert?.rule?.groups) ? alert.rule.groups.join(', ') : (alert?.rule?.groups ?? 'N/A');\nconst ruleId = alert?.rule?.id ?? 'N/A';\nconst location = alert?.location ?? 'N/A';\nconst rawTs = alert?.timestamp ?? new Date().toISOString();\nconst tz = item.timezone ?? 'Europe/Madrid';\nconst ts = new Date(rawTs).toLocaleString('es-ES', { timeZone: tz, hour12: false });\nconst isCritical = level >= (item.criticalLevel ?? 12);\n\n// ============================================================\n// PERSONALIZA ESTO: Contexto de infraestructura NigulSystems\n// Sustituye con tus IPs reales, hostnames, clientes y servicios\n// ============================================================\nconst infraContext = `Contexto de infraestructura \u2014 NigulSystems MSP (wazuh.nigulsystems.net):\n- MSP basado en Espa\u00f1a (Tortosa, Catalunya). Gestiona clientes SMB con 80-100+ agentes Wazuh.\n- SIEM: Wazuh cluster en wazuh.nigulsystems.net \u2014 alertas de m\u00faltiples clientes\n- Infraestructura propia: Proxmox VE con KVM/LXC, almacenamiento Ceph\n- Servicios: n8n (n8n.nigul.info), Plesk, Docker/Portainer, WordPress/WooCommerce\n- Red: protegida con Cloudflare, VPN interna para administraci\u00f3n\n- Respuesta activa: MONITORIZACIÓN PASIVA, sin bloqueo autom\u00e1tico\n- IMPORTANTE: identificar si la alerta pertenece a infraestructura propia del MSP o a un cliente gestionado\n- agentName puede contener el nombre del cliente o del host del MSP`;\n// ============================================================\n// FIN PERSONALIZA \u2014 a\u00f1ade aqu\u00ed IPs, rangos, clientes reales\n// ============================================================\n\nconst systemPrompt = `Eres un analista de seguridad senior del MSP NigulSystems revisando una alerta del SIEM Wazuh. Responde SOLO con un objeto JSON v\u00e1lido, sin texto fuera del JSON, sin bloques de c\u00f3digo markdown.\n\n${infraContext}\n\nEsquema de respuesta (todos los campos obligatorios):\n{\n  \"risk_level\": \"low|medium|high|critical\",\n  \"likely_cause\": \"una frase explicando la causa m\u00e1s probable dada esta infraestructura MSP\",\n  \"is_likely_false_positive\": true o false,\n  \"fp_reason\": \"si es falso positivo, raz\u00f3n breve; si no, cadena vac\u00eda\",\n  \"client_or_msp\": \"nombre del cliente o 'MSP' si es infraestructura propia\",\n  \"recommended_action\": [\"acci\u00f3n 1\", \"acci\u00f3n 2\"],\n  \"investigate_commands\": [\"comando bash 1\", \"comando bash 2\"],\n  \"ntfy_title\": \"t\u00edtulo corto para notificaci\u00f3n push (m\u00e1x 50 chars)\",\n  \"ntfy_tags\": \"emoji1,emoji2 (m\u00e1x 2, ej: warning,skull)\"\n}`;\n\nconst userPrompt = `Analiza esta alerta de Wazuh del MSP NigulSystems:\n\nAgente: ${agentName} (ID: ${agentId}, IP: ${agentIp})\nRegla ID: ${ruleId} | Nivel: ${level} | Cr\u00edtico: ${isCritical}\nDescripci\u00f3n: ${description}\nGrupos: ${groups}\nIP Origen: ${srcIp ?? 'N/A'}\nUsuario Destino: ${dstUser ?? 'N/A'} | Usuario Origen: ${srcUser ?? 'N/A'}\nComando: ${command ?? 'N/A'}\nUbicaci\u00f3n (log): ${location}\nTimestamp: ${ts}\n\nJSON completo de la alerta:\n${JSON.stringify(alert, null, 2)}`;\n\nconst aiRequestBody = {\n  model: item.aiModel ?? 'claude-haiku-4-5-20251001',\n  max_tokens: 800,\n  messages: [\n    { role: 'system', content: systemPrompt },\n    { role: 'user', content: userPrompt }\n  ]\n};\n\nreturn [{\n  json: {\n    minAlertLevel: item.minAlertLevel,\n    criticalLevel: item.criticalLevel,\n    timezone: item.timezone,\n    aiModel: item.aiModel,\n    emailTo: item.emailTo,\n    emailSubjectPrefix: item.emailSubjectPrefix,\n    ntfyUrl: item.ntfyUrl,\n    wazuhDashboard: item.wazuhDashboard,\n    level, description, agentName, agentId, agentIp, srcIp, dstUser, srcUser, command, groups, ruleId, location, ts, isCritical,\n    aiRequestBody\n  }\n}];"
+      },
+      "id": "nigul-node-05",
+      "name": "Extraer Alerta",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1136, 304]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.perplexity.ai/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {"name": "Content-Type", "value": "application/json"}
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.aiRequestBody) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "nigul-node-06",
+      "name": "An\u00e1lisis IA (Perplexity\u2192Claude)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1380, 304],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "perplexity-api-cred",
+          "name": "Perplexity API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first().json;\nconst prev = $('Extraer Alerta').first().json;\n\nlet aiResult = {};\ntry {\n  const rawContent = item?.choices?.[0]?.message?.content ?? '{}';\n  const cleaned = rawContent.replace(/```json\\n?/g, '').replace(/```\\n?/g, '').trim();\n  aiResult = JSON.parse(cleaned);\n} catch(e) {\n  aiResult = {\n    risk_level: 'unknown',\n    likely_cause: 'Error al parsear respuesta IA: ' + e.message,\n    is_likely_false_positive: false,\n    fp_reason: '',\n    client_or_msp: 'Desconocido',\n    recommended_action: ['Revisar manualmente en Wazuh Dashboard'],\n    investigate_commands: [],\n    ntfy_title: 'Error an\u00e1lisis IA',\n    ntfy_tags: 'warning'\n  };\n}\n\nconst isFP = aiResult.is_likely_false_positive === true;\nconst riskLevel = (aiResult.risk_level ?? 'unknown').toUpperCase();\nconst riskEmoji = {CRITICAL: '\ud83d\udd34', HIGH: '\ud83d\udfe0', MEDIUM: '\ud83d\udfe1', LOW: '\ud83d\udfe2', UNKNOWN: '\u26aa'}[riskLevel] ?? '\u26aa';\nconst fpBadge = isFP ? ' [PROBABLE FP]' : '';\n\nconst emailSubject = `${prev.emailSubjectPrefix} ${riskEmoji} ${riskLevel}${fpBadge} | Nivel ${prev.level} | ${prev.agentName} | ${prev.description.substring(0, 60)}`;\n\nconst riskColor = {CRITICAL:'#dc2626',HIGH:'#ea580c',MEDIUM:'#d97706',LOW:'#16a34a',UNKNOWN:'#6b7280'}[riskLevel] ?? '#6b7280';\n\nconst emailHtml = `<!DOCTYPE html>\n<html>\n<head><meta charset=\"UTF-8\"><style>\nbody{font-family:Arial,sans-serif;background:#f5f5f5;margin:0;padding:20px}\n.container{background:#fff;border-radius:8px;padding:24px;max-width:700px;margin:0 auto;border-left:5px solid ${riskColor}}\nh2{margin:0 0 16px;color:#1e293b}\n.badge{display:inline-block;padding:4px 12px;border-radius:20px;font-weight:bold;color:#fff;background:${riskColor}}\n.fp{background:#7c3aed;color:#fff;padding:4px 10px;border-radius:20px;margin-left:8px;font-size:12px}\ntable{width:100%;border-collapse:collapse;margin:16px 0}\ntd{padding:8px 12px;border-bottom:1px solid #e2e8f0;vertical-align:top}\ntd:first-child{font-weight:bold;color:#475569;width:160px;white-space:nowrap}\n.section-title{font-weight:bold;color:#1e293b;margin:16px 0 8px;font-size:14px;text-transform:uppercase;letter-spacing:0.05em}\n.cmd{background:#1e293b;color:#a3e635;padding:8px 12px;border-radius:4px;font-family:monospace;font-size:12px;margin:4px 0;word-break:break-all}\n.footer{margin-top:20px;padding-top:16px;border-top:1px solid #e2e8f0;font-size:12px;color:#94a3b8}\n</style></head>\n<body>\n<div class=\"container\">\n  <h2>\ud83d\udee1\ufe0f NigulSystems NOC \u2014 Alerta Wazuh</h2>\n  <span class=\"badge\">${riskEmoji} ${riskLevel}</span>\n  ${isFP ? '<span class=\"fp\">PROBABLE FALSO POSITIVO</span>' : ''}\n  <table>\n    <tr><td>Agente</td><td><strong>${prev.agentName}</strong> (${prev.agentIp})</td></tr>\n    <tr><td>Cliente/MSP</td><td>${aiResult.client_or_msp ?? 'N/A'}</td></tr>\n    <tr><td>Regla</td><td>${prev.ruleId} \u2014 Nivel ${prev.level}</td></tr>\n    <tr><td>Descripci\u00f3n</td><td>${prev.description}</td></tr>\n    <tr><td>Grupos</td><td>${prev.groups}</td></tr>\n    ${prev.srcIp ? `<tr><td>IP Origen</td><td>${prev.srcIp}</td></tr>` : ''}\n    ${prev.srcUser ? `<tr><td>Usuario</td><td>${prev.srcUser}</td></tr>` : ''}\n    <tr><td>Log</td><td>${prev.location}</td></tr>\n    <tr><td>Timestamp</td><td>${prev.ts}</td></tr>\n  </table>\n  <div class=\"section-title\">\ud83e\udd16 An\u00e1lisis IA (${prev.aiModel})</div>\n  <p><strong>Causa probable:</strong> ${aiResult.likely_cause ?? 'N/A'}</p>\n  ${isFP && aiResult.fp_reason ? `<p><strong>Raz\u00f3n FP:</strong> ${aiResult.fp_reason}</p>` : ''}\n  ${Array.isArray(aiResult.recommended_action) && aiResult.recommended_action.length > 0 ? `<div class=\"section-title\">\ud83d\udccb Acciones Recomendadas</div><ul>${aiResult.recommended_action.map(a => `<li>${a}</li>`).join('')}</ul>` : ''}\n  ${Array.isArray(aiResult.investigate_commands) && aiResult.investigate_commands.length > 0 ? `<div class=\"section-title\">\ud83d\udd0d Comandos de Investigaci\u00f3n</div>${aiResult.investigate_commands.map(c => `<div class=\"cmd\">${c}</div>`).join('')}` : ''}\n  <div class=\"footer\">\n    <a href=\"${prev.wazuhDashboard}\">\ud83d\udd17 Abrir Wazuh Dashboard</a> |\n    NigulSystems NOC AI Analyzer | ${prev.ts}\n  </div>\n</div>\n</body></html>`;\n\nconst ntfyTitle = aiResult.ntfy_title ?? `${riskLevel} | ${prev.agentName}`;\nconst ntfyTags = aiResult.ntfy_tags ?? (riskLevel === 'CRITICAL' ? 'skull,rotating_light' : 'warning');\nconst ntfyPriority = {CRITICAL: 5, HIGH: 4, MEDIUM: 3, LOW: 2, UNKNOWN: 3}[riskLevel] ?? 3;\nconst ntfyBody = `${riskEmoji} [Nivel ${prev.level}] ${prev.agentName} (${prev.agentIp})\n${prev.description}\n${isFP ? '\u26a0\ufe0f PROBABLE FALSO POSITIVO: ' + (aiResult.fp_reason ?? '') : ''}\nCausa: ${aiResult.likely_cause ?? 'N/A'}\nAcci\u00f3n: ${Array.isArray(aiResult.recommended_action) ? aiResult.recommended_action[0] : 'Ver email'}`;\n\nreturn [{\n  json: {\n    ...prev,\n    aiResult,\n    riskLevel,\n    riskEmoji,\n    isFP,\n    emailSubject,\n    emailHtml,\n    ntfyTitle,\n    ntfyTags,\n    ntfyPriority,\n    ntfyBody\n  }\n}];"
+      },
+      "id": "nigul-node-07",
+      "name": "Formatear Alertas",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1636, 304]
+    },
+    {
+      "parameters": {
+        "fromEmail": "fcovalls@nigulsystems.com",
+        "toEmail": "={{ $json.emailTo }}",
+        "subject": "={{ $json.emailSubject }}",
+        "emailFormat": "html",
+        "html": "={{ $json.emailHtml }}",
+        "options": {}
+      },
+      "id": "nigul-node-08",
+      "name": "Email Google Workspace",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [1880, 220],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "gmail-oauth2-cred",
+          "name": "Gmail NigulSystems"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.ntfyUrl }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {"name": "Title", "value": "={{ $json.ntfyTitle }}"},
+            {"name": "Priority", "value": "={{ $json.ntfyPriority }}"},
+            {"name": "Tags", "value": "={{ $json.ntfyTags }}"},
+            {"name": "Actions", "value": "={{ 'view, Wazuh Dashboard, ' + $json.wazuhDashboard }}"},
+            {"name": "Content-Type", "value": "text/plain"}
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "string",
+        "body": "={{ $json.ntfyBody }}",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "nigul-node-09",
+      "name": "ntfy Push Notification",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1880, 420]
+    }
+  ],
+  "connections": {
+    "Webhook Alerta Wazuh": {
+      "main": [[{"node": "Config", "type": "main", "index": 0}]]
+    },
+    "Config": {
+      "main": [[{"node": "SI Nivel Clasifica", "type": "main", "index": 0}]]
+    },
+    "SI Nivel Clasifica": {
+      "main": [
+        [{"node": "Extraer Alerta", "type": "main", "index": 0}],
+        [{"node": "Parar - Por Debajo del Umbral", "type": "main", "index": 0}]
+      ]
+    },
+    "Extraer Alerta": {
+      "main": [[{"node": "An\u00e1lisis IA (Perplexity\u2192Claude)", "type": "main", "index": 0}]]
+    },
+    "An\u00e1lisis IA (Perplexity\u2192Claude)": {
+      "main": [[{"node": "Formatear Alertas", "type": "main", "index": 0}]]
+    },
+    "Formatear Alertas": {
+      "main": [
+        [
+          {"node": "Email Google Workspace", "type": "main", "index": 0},
+          {"node": "ntfy Push Notification", "type": "main", "index": 0}
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "tags": [
+    {"id": "wazuh-msp", "name": "Wazuh"},
+    {"id": "nigulsystems", "name": "NigulSystems"}
+  ],
+  "pinData": {},
+  "versionId": "nigul-v1.0.0"
+}
